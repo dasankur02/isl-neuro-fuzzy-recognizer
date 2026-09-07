@@ -1,0 +1,2 @@
+- [OpenAPI/Zod compatibility](openapi-zod-version-quirk.md) — generated integer validators must match the workspace's installed Zod version.
+- [TypeScript test runner](typescript-test-runner.md) — use the workspace tsx runner for tests that import bundler-style TypeScript workspace modules.
