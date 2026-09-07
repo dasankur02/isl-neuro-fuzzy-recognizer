@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: recognition
+    description: ISL digit recognition operations
+  - name: training
+    description: Hybrid model training operations
+  - name: evaluation
+    description: Model evaluation operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /recognition/demo:
+    get:
+      operationId: getRecognitionDemo
+      tags: [recognition]
+      summary: Get a live demo sequence
+      description: Returns a deterministic synthetic landmark sequence for the interactive demo.
+      responses:
+        "200":
+          description: Demo sequence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecognitionDemo"
+  /recognition/classify:
+    post:
+      operationId: classifyRecognition
+      tags: [recognition]
+      summary: Classify a landmark sequence
+      description: Runs the three-feature spatial ANFIS stage and the temporal GRU stage.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecognitionInput"
+      responses:
+        "200":
+          description: Recognition result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecognitionResult"
+        "400":
+          description: Invalid recognition input
+  /training/run:
+    post:
+      operationId: runTraining
+      tags: [training]
+      summary: Train the dual-stage recognizer
+      description: Fits the recognizer on labeled landmark samples, then evaluates a deterministic held-out split.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainingInput"
+      responses:
+        "200":
+          description: Training result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingResult"
+  /evaluation/summary:
+    get:
+      operationId: getEvaluationSummary
+      tags: [evaluation]
+      summary: Get baseline and proposed evaluation metrics
+      responses:
+        "200":
+          description: Evaluation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluationSummary"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Landmark:
+      type: object
+      properties:
+        x: { type: number }
+        y: { type: number }
+        z: { type: number }
+      required: [x, y, z]
+    RecognitionInput:
+      type: object
+      properties:
+        landmarks:
+          type: array
+          minItems: 21
+          maxItems: 21
+          items:
+            $ref: "#/components/schemas/Landmark"
+        sequence:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items:
+            type: array
+            minItems: 21
+            maxItems: 21
+            items:
+              $ref: "#/components/schemas/Landmark"
+      required: [landmarks]
+    RecognitionDemo:
+      type: object
+      properties:
+        landmarks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Landmark"
+        sequence:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Landmark"
+        label: { type: string }
+        confidence: { type: number }
+      required: [landmarks, sequence, label, confidence]
+    ClassProbability:
+      type: object
+      properties:
+        label: { type: string }
+        probability: { type: number }
+      required: [label, probability]
+    RecognitionResult:
+      type: object
+      properties:
+        label: { type: string }
+        confidence: { type: number }
+        features:
+          type: object
+          properties:
+            fingerCount: { type: number }
+            spread: { type: number }
+            orientation: { type: number }
+          required: [fingerCount, spread, orientation]
+        probabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassProbability"
+        stage:
+          type: string
+        latencyMs: { type: number }
+      required: [label, confidence, features, probabilities, stage, latencyMs]
+    TrainingInput:
+      type: object
+      properties:
+        epochs: { type: number, minimum: 1, maximum: 250 }
+        augmentation: { type: boolean }
+        dataset:
+          type: array
+          minItems: 5
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/TrainingSample"
+      required: [dataset]
+    TrainingSample:
+      type: object
+      properties:
+        label:
+          type: string
+          enum: [ONE, TWO, THREE, FOUR, FIVE]
+        landmarks:
+          type: array
+          minItems: 21
+          maxItems: 21
+          items:
+            $ref: "#/components/schemas/Landmark"
+        sequence:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items:
+            type: array
+            minItems: 21
+            maxItems: 21
+            items:
+              $ref: "#/components/schemas/Landmark"
+        source: { type: string, maxLength: 160 }
+      required: [label, landmarks]
+    TrainingStep:
+      type: object
+      properties:
+        epoch: { type: number }
+        stage: { type: string }
+        loss: { type: number }
+        accuracy: { type: number }
+      required: [epoch, stage, loss, accuracy]
+    TrainingResult:
+      type: object
+      properties:
+        status: { type: string }
+        epochs: { type: number }
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainingStep"
+        anfisRules: { type: number }
+        hiddenUnits: { type: number }
+        augmentationSamples: { type: number }
+        datasetSamples: { type: number }
+        trainSamples: { type: number }
+        validationSamples: { type: number }
+        validationAccuracy: { type: number }
+        perDigit:
+          type: array
+          items:
+            $ref: "#/components/schemas/DigitMetric"
+        confusionCases:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfusionCase"
+        modelVersion: { type: string }
+      required: [status, epochs, steps, anfisRules, hiddenUnits, augmentationSamples]
+    DigitMetric:
+      type: object
+      properties:
+        label: { type: string }
+        accuracy: { type: number }
+      required: [label, accuracy]
+    ConfusionCase:
+      type: object
+      properties:
+        actual: { type: string }
+        predicted: { type: string }
+        count: { type: number }
+      required: [actual, predicted, count]
+    EvaluationSummary:
+      type: object
+      properties:
+        baselineAccuracy: { type: number }
+        proposedAccuracy: { type: number }
+        baseline:
+          type: array
+          items:
+            $ref: "#/components/schemas/DigitMetric"
+        proposed:
+          type: array
+          items:
+            $ref: "#/components/schemas/DigitMetric"
+        sampleCount: { type: number }
+        lastRun: { type: string }
+        validationAccuracy: { type: number }
+        perDigit:
+          type: array
+          items:
+            $ref: "#/components/schemas/DigitMetric"
+        confusionCases:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfusionCase"
+        datasetSamples: { type: number }
+        validationSamples: { type: number }
+        isTrained: { type: boolean }
+      required: [baselineAccuracy, proposedAccuracy, baseline, proposed, sampleCount, lastRun]
+
