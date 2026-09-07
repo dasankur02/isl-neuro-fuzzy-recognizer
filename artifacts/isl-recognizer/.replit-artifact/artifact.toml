@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ISL Neuro-Fuzzy Recognizer"
+description = "A real-time Indian Sign Language digit recognition workbench that demonstrates the hybrid spatial ANFIS and temporal GRU pipeline, synthetic landmark augmentation, model training stages, and evaluation metrics."
+version = "1.0.0"
+id = "artifacts/isl-recognizer"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19042
+
+[services.development]
+run = "pnpm --filter @workspace/isl-recognizer run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/isl-recognizer", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/isl-recognizer/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19042"
+BASE_PATH = "/"
